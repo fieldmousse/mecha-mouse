@@ -1,0 +1,20 @@
+{
+  "name": "mecha-mouse",
+  "version": "0.0.0",
+  "description": "Node.js Discord Bot for providing dictionary/thesaurus commands and personal lexicon tracking",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "FieldMousse",
+  "dependencies": {
+    "dotenv": "^6.0.0",
+    "natural": "^0.6.1",
+    "sequelize": "^4.38.0",
+    "sqlite3": "^4.0.2",
+    "wordnet-db": "^3.1.6"
+  },
+  "devDependencies": {
+    "discord.js": "^11.4.2"
+  }
+}
