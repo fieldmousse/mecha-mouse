@@ -7,11 +7,13 @@ const Sequelize = require("sequelize"),
     Discord = require('discord.js'),
     natural = require("natural"),
     fs = require("fs"),
+    moment = require("moment"),
     wordnet = new natural.WordNet(),
     tokenizer = new natural.TreebankWordTokenizer(),
     COMMON_CORPUS = fs.readFileSync(path.join(__dirname, "./common_corpus.csv"), { encoding: "utf8" }).split("\n").filter(Boolean),
     COMMON_CORPUS_HASH = new Set(COMMON_CORPUS),
     REALLY_COMMON_WORDS = COMMON_CORPUS.slice(0, 100),
+    Op = Sequelize.Op,
     spellcheck = new natural.Spellcheck(COMMON_CORPUS);
 
 const client = new Discord.Client();
@@ -79,6 +81,55 @@ function formDefinition(word, wordnetResults) {
     return word + ": \n" + definitions.join("\n\n");
 }
 
+/**
+ * Lookup a user's stats for a word
+ * @param user The Sequelzie model for the user
+ * @param {string} root to lookup
+ * @returns {Promise<{}>} the stats
+ */
+async function wordStats({ id: uid }, root) {
+    const lex = await Lexicon.findOne({
+        where: { uid, root },
+        attributes: ["uses", "validated", "createdAt", "updatedAt"],
+    });
+    const others = await Lexicon.count({
+        where: {
+            uid: {
+                [Op.not]: uid,
+            },
+            root,
+        },
+    });
+    if (!lex) {
+        return {
+            known: false,
+            others,
+        };
+    }
+    const { validated, uses, created, updated } = lex;
+    return {
+        known: true, validated, uses, created, updated, others: others || 0,
+    };
+}
+
+async function formattedWordStats(user, root) {
+    const { known, validated, uses, created, updated, others } = await wordStats(user, root);
+    let text = "";
+    if (!known) {
+        text += `I don't have any record of you using "${root}". `;
+    }
+    if (known) {
+        if (!validated) {
+            text += `I don't know what ${root} means. `;
+        }
+        const createdMoment = moment(created);
+        const updatedMoment = moment(updated);
+        text += `You have used the word "${root}" ${uses} times. You first used the word ${createdMoment.fromNow()}. You last used "${root}" ${updatedMoment.fromNow()}. `;
+    }
+    text += `${others} other user${others !== 1 ? "s" : ""} know${others !== 1 ? "" : "s"} this word. `;
+    return text;
+}
+
 function lookupWordnet(word) {
     return new Promise(resolve => {
         wordnet.lookup(word, results => {
@@ -116,6 +167,7 @@ client.on('ready', () => {
 
 const lookupCmd = /^!lookup\s+(.*)$/;
 const wordsCmd = /^!words$/;
+const statsCmd = /^!word\s+(.*)$/;
 
 client.on('message', async msg => {
     const transaction = await db.transaction({ autocommit: false });
@@ -149,6 +201,11 @@ client.on('message', async msg => {
             return;
         }
 
+        const statMatch = statsCmd.exec(content);
+
+        if (statMatch !== null) {
+            msg.reply(await formattedWordStats(user, statMatch[1]));
+        }
 
         const tokens = tokenizer.tokenize(content.replace(".", " "));
         for (const token of tokens) {
