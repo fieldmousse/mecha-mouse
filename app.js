@@ -106,7 +106,7 @@ async function wordStats({ id: uid }, root) {
             others,
         };
     }
-    const { validated, uses, created, updated } = lex;
+    const { validated, uses, createdAt: created, updatedAt: updated } = lex;
     return {
         known: true, validated, uses, created, updated, others: others || 0,
     };
